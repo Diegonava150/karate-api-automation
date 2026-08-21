@@ -1,0 +1,23 @@
+<configuration>
+  <!--
+    Karate and Testcontainers are both chatty at DEBUG, and Karate logs every request and
+    response body at DEBUG. That is genuinely useful when a scenario fails and pure noise
+    otherwise, so the default is INFO and the HTTP detail lives in the Karate HTML report,
+    which keeps it per-scenario instead of interleaved across four threads.
+  -->
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="com.intuit.karate" level="INFO"/>
+  <logger name="io.karatelabs" level="INFO"/>
+  <logger name="org.testcontainers" level="INFO"/>
+  <logger name="tc" level="INFO"/>
+  <logger name="com.github.dockerjava" level="WARN"/>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>

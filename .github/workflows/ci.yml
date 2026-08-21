@@ -1,0 +1,161 @@
+name: CI
+
+# Every push and pull request. No secrets, no hosted API, no account required — the suite
+# starts the API it tests, so a fresh clone gets a green build on its first push.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (JDK 21)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      # GitHub's ubuntu runners ship a working Docker daemon, which is the only thing
+      # Testcontainers needs. Nothing to install and no service container to declare: the
+      # suite brings up Postgres and PostgREST itself, so CI runs exactly what a developer
+      # runs locally.
+      - name: Show Docker version
+        run: docker version --format 'Docker {{.Server.Version}} on {{.Server.Os}}/{{.Server.Arch}}'
+
+      - name: Run the suite
+        run: ./mvnw -B clean test
+
+      # if: always() — a failing suite is precisely when the report is worth reading, and
+      # `if: failure()` would also skip it when the job is cancelled by its timeout.
+      - name: Upload the Karate report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: karate-report
+          path: target/karate-reports
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload surefire output
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: surefire-reports
+          path: target/surefire-reports
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # A mock that is only ever checked against itself is a fixture with opinions: it agrees with
+  # whatever it was written to agree with, forever. contract.feature runs one set of consumer
+  # expectations against both the real service and the mock, so drift between them fails the
+  # build — but only if that comparison actually works.
+  #
+  # This job proves it does, by removing a field from the mock and requiring the suite to go
+  # red. A green result here means the contract check has stopped checking, which is worse than
+  # not having it: the report would still show two passing scenarios.
+  contract-drift:
+    name: Prove mock drift is caught
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Drift the mock away from the provider
+        run: |
+          # The provider returns inPrint on every book and the consumer contract requires it.
+          # Removing it from the mock is the smallest possible divergence that a consumer would
+          # actually notice.
+          sed -i "s/, inPrint: true }/ }/g" src/test/resources/contracts/catalog-mock.feature
+          echo "--- mock after drift ---"
+          grep -n "id: 1, title\|id: 2, title" src/test/resources/contracts/catalog-mock.feature
+
+      - name: The suite must now fail
+        run: |
+          if ./mvnw -B clean test > drift.log 2>&1; then
+            echo "::error::The suite PASSED with the mock missing a field the contract requires."
+            echo "::error::The mock and the real service are no longer being compared."
+            tail -40 drift.log
+            exit 1
+          fi
+
+          # Red is necessary but not sufficient: it has to be red for the right reason, and in
+          # the right place. A compile error or a dead container would also fail this job.
+          if ! grep -q "actual does not contain key - 'inPrint'" drift.log; then
+            echo "::error::The suite failed, but not on the mock drift this job introduced."
+            tail -40 drift.log
+            exit 1
+          fi
+          if ! grep -q 'the real service satisfies the consumer contract' drift.log; then
+            echo "::error::Could not confirm the real-service contract scenario still ran."
+            exit 1
+          fi
+
+          echo "Mock drift was caught, and the real service still satisfied the same contract."
+
+      - name: Upload the drift log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: contract-drift-log
+          path: drift.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  secrets-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history. A key committed once and deleted in the next commit is still in the
+          # pack file, still reachable by anyone who clones, and still has to be rotated.
+          fetch-depth: 0
+
+      # Prove the check can fail before believing that it passed. gitleaks pointed at a path
+      # that does not exist exits 0, which is indistinguishable from a clean repository. The key
+      # is generated here, random, valid nowhere, and written outside the workspace.
+      - name: Prove the scanner can fail
+        run: |
+          canary="$RUNNER_TEMP/canary"
+          mkdir -p "$canary"
+          printf 'ANTHROPIC_API_KEY=sk-ant-api03-%sAA\n' \
+            "$(head -c 300 /dev/urandom | base64 | tr -dc 'A-Za-z0-9_-' | head -c 93)" \
+            > "$canary/planted.env"
+
+          if docker run --rm -v "$canary:/scan" "$GITLEAKS_IMAGE" \
+               detect --source=/scan --no-git --redact --no-banner; then
+            echo "::error::gitleaks reported clean on a directory containing a planted key."
+            exit 1
+          fi
+          echo "Planted key was caught, so a clean result below means something."
+
+      - name: Scan the full history
+        run: |
+          docker run --rm -v "$PWD:/repo" "$GITLEAKS_IMAGE" \
+            detect --source=/repo --redact --verbose --no-banner

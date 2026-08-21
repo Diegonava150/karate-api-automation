@@ -1,0 +1,44 @@
+# Dependency rot is the failure mode that has cost these repositories the most, and none of it
+# was catchable by a passing test suite: a Lombok version that predated JDK 21, an Allure
+# artifact that had never existed, and a GitHub Action whose base image was deleted from Docker
+# Hub. A green `mvn test` says nothing about whether the things around it still resolve.
+
+version: 2
+
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, java]
+    commit-message:
+      prefix: "deps"
+    groups:
+      # Artifacts sharing a version line move together. karate-core at one version and
+      # karate-gatling at another is a broken build, and one PR per artifact invites exactly
+      # that.
+      karate:
+        patterns: ["io.karatelabs:*"]
+      testcontainers:
+        patterns: ["org.testcontainers:*"]
+      junit:
+        patterns: ["org.junit*:*"]
+      logging:
+        patterns: ["org.slf4j:*", "ch.qos.logback:*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: "ci"
+
+# No docker ecosystem block. There is no Dockerfile and no compose file here, and Dependabot's
+# docker updater parses only those two. The Postgres and PostgREST tags are Java string
+# constants in ApiUnderTest, and the gitleaks tag is a string inside a run step — none of which
+# it can read. A block pointed at a directory it cannot use fails on every run, and a config
+# that errors constantly is worse than an acknowledged gap.

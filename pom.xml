@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>dev.diegonava</groupId>
+  <artifactId>karate-api-automation</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+  <name>karate-api-automation</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>21</maven.compiler.release>
+
+    <!--
+      Karate 2.x is a rewrite: the internals moved to io.karatelabs.*, and a small
+      com.intuit.karate compatibility surface remains for the entry points this project
+      uses = Runner, Results and MockServer.
+
+      karate-junit5 is deliberately absent. It has not followed core past 1.5.2, and the
+      annotation it provides is not needed: the parallel Runner API is the documented way
+      to run a suite concurrently, and plain JUnit 5 asserts on the result.
+    -->
+    <karate.version>2.1.2</karate.version>
+    <junit.version>5.14.2</junit.version>
+    <testcontainers.version>1.21.4</testcontainers.version>
+    <slf4j.version>2.0.18</slf4j.version>
+    <logback.version>1.5.20</logback.version>
+    <surefire.version>3.5.6</surefire.version>
+
+    <!-- Threads for the Karate parallel runner. Overridable = ./mvnw test -Dkarate.threads=1 -->
+    <karate.threads>4</karate.threads>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.karatelabs</groupId>
+      <artifactId>karate-core</artifactId>
+      <version>${karate.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      The suite starts the API it tests. There is no hosted sandbox to expire, no key to
+      leak and no shared state to collide with = `./mvnw test` and Docker is the whole
+      setup. The sibling REST Assured project learned this the expensive way, pointed at a
+      free hosted mock that filled to its row cap and failed every run afterwards.
+    -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>${testcontainers.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${testcontainers.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      Pinned. Testcontainers pulls slf4j-api 1.7.x transitively, and a 1.7 API against a
+      2.x binding resolves to the no-op logger = every log line silently discarded, which
+      is exactly the failure that hides a container that never started.
+    -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <testResources>
+      <!--
+        Feature files live beside the Java that runs them, and must be on the test
+        classpath rather than compiled. Without this, `classpath:features/...` resolves to
+        nothing and the runner reports zero scenarios = a green build that ran no tests,
+        which is the worst possible outcome and the easiest to miss.
+      -->
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+    </testResources>
+
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.15.0</version>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire.version}</version>
+        <configuration>
+          <!--
+            One JVM for the whole suite. The containers are a singleton started on first
+            touch, and forking per class would start a fresh stack for each = minutes of
+            Docker for no isolation the schema does not already provide.
+          -->
+          <forkCount>1</forkCount>
+          <reuseForks>true</reuseForks>
+          <systemPropertyVariables>
+            <karate.threads>${karate.threads}</karate.threads>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

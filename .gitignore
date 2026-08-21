@@ -1,0 +1,27 @@
+# ---- build output
+target/
+
+# ---- Karate
+# The runner writes reports here; they are generated on every run and belong in CI
+# artifacts, not in git.
+build/
+karate-reports/
+**/karate-reports/
+
+# ---- IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# ---- OS
+.DS_Store
+Thumbs.db
+
+# ---- local overrides
+.env
+*.local
