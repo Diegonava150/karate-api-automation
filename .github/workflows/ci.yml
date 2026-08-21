@@ -107,12 +107,23 @@ jobs:
             tail -40 drift.log
             exit 1
           fi
-          if ! grep -q 'the real service satisfies the consumer contract' drift.log; then
-            echo "::error::Could not confirm the real-service contract scenario still ran."
+
+          # Karate lists scenarios by name only when they fail, so the two checks below are
+          # both about the failure list: the mock scenario must be in it, and the real-service
+          # one must not. Asserting the passing name appears somewhere was the first attempt
+          # and could never match — the drift was caught correctly and this job still failed.
+          if ! grep -q 'the mock satisfies the same consumer contract' drift.log; then
+            echo "::error::The mock contract scenario is not among the failures; something else broke."
+            tail -40 drift.log
+            exit 1
+          fi
+          if grep -q 'the real service satisfies the consumer contract' drift.log; then
+            echo "::error::The real service also failed, so this proves nothing about the mock."
+            tail -40 drift.log
             exit 1
           fi
 
-          echo "Mock drift was caught, and the real service still satisfied the same contract."
+          echo "Mock drift was caught, and only the mock scenario failed."
 
       - name: Upload the drift log
         if: always()
