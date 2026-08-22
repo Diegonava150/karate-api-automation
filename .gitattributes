@@ -1,0 +1,20 @@
+# Normalise line endings in the repository, whatever the checkout platform does locally.
+#
+# This is not cosmetic here. `mvnw` is a shell script executed by a Linux runner: committed with
+# CRLF it fails with a `bad interpreter` error that names the file and not the reason. The first
+# CI run of this repository already failed on the neighbouring version of that problem — the
+# executable bit, which Windows git does not track either.
+* text=auto eol=lf
+
+# Shell scripts and the wrapper must be LF, always.
+*.sh        text eol=lf
+mvnw        text eol=lf
+
+# Windows-only, and cmd.exe is entitled to its CRLF.
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Binary, never touched.
+*.jar       binary
+*.png       binary
+*.pdf       binary

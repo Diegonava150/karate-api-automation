@@ -14,6 +14,7 @@ Feature: Books can be read, created, changed and deleted
 
   # ------------------------------------------------------------------ read
 
+  @perf
   Scenario: List every book
 
     # `#[_ >= 4]`, not `#[4]`, and this is not hedging.
@@ -34,6 +35,7 @@ Feature: Books can be read, created, changed and deleted
     * def titles = $response[*].title
     And match titles contains ['The Left Hand of Darkness', 'A Wizard of Earthsea', 'One Hundred Years of Solitude', 'Invisible Cities']
 
+  @perf
   Scenario: Read one book by id
     Given path 'books'
     And param id = 'eq.3'
@@ -52,6 +54,7 @@ Feature: Books can be read, created, changed and deleted
     Then status 200
     And match response == []
 
+  @perf
   Scenario: Order and limit are honoured
     Given path 'books'
     And param order = 'priceUsd.desc'

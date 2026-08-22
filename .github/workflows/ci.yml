@@ -134,6 +134,118 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # The negative scenarios assert SQLSTATE codes — 23502, 23505, 23514 — and a green tick says
+  # the same thing whether the assertion held or never ran. This job removes the constraints
+  # those scenarios exercise and requires each of them, by name, to go red.
+  #
+  # Not "did the suite fail": one surviving failure would satisfy that while every other
+  # mutation quietly stopped being caught, which is the exact "green means nothing" problem the
+  # job exists to prevent, reproduced inside the job.
+  mutation:
+    name: Prove the negative tests can fail
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Run against a schema with the constraints removed
+        run: |
+          ./mvnw -B clean test -Dapi.schema=db/init-weakened.sql > mutation.log 2>&1 \
+            && SUITE_PASSED=1 || SUITE_PASSED=0
+
+          if [ "$SUITE_PASSED" = "1" ]; then
+            echo "::error::The suite PASSED against a schema with every asserted constraint removed."
+            echo "::error::None of the negative scenarios is asserting what it claims to assert."
+            tail -40 mutation.log
+            exit 1
+          fi
+
+          # Karate lists a scenario by name only when it fails, so the failure list is the
+          # evidence. A Scenario Outline collapses to its base name, which is why the four
+          # out-of-range ratings are one entry.
+          grep -E '^\s+- ' mutation.log | sed 's/^ *- //' | sort -u > failed.txt
+          grep -vE '^\s*(#|$)' src/test/resources/db/mutation-expectations.txt | sort -u > expected.txt
+
+          echo "### Mutation coverage" >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          while IFS= read -r scenario; do
+            if grep -Fqx "$scenario" failed.txt; then
+              echo "- ✅ \`$scenario\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::Expected to fail under the weakened schema, but PASSED: $scenario"
+              echo "- ❌ **$scenario** — passed with its constraint removed, so nothing proves it can fail" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+            fi
+          done < expected.txt
+
+          # Extras are reported, not required. Removing a constraint lets bad data through, and
+          # a data-shape assertion elsewhere may legitimately trip on it — worth a reader's
+          # attention, not a build failure.
+          if comm -13 expected.txt failed.txt | grep -q .; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Also failed, not required by the expectations file:" >> "$GITHUB_STEP_SUMMARY"
+            comm -13 expected.txt failed.txt | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$status" != "0" ]; then
+            echo "::error::A mutation stopped being caught. See db/mutation-expectations.txt."
+            exit 1
+          fi
+          echo "All $(wc -l < expected.txt) expected scenarios failed as required."
+
+      - name: Upload the mutation log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-log
+          path: mutation.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # On demand only. A load profile in the per-push build turns every commit into a timing
+  # measurement of whichever runner GitHub handed out, and a number that moves for that reason
+  # teaches everyone to ignore it.
+  #
+  # It is wired into CI anyway rather than left as a README instruction, because a command
+  # nobody has run is a command that does not work. This one has been run.
+  performance:
+    name: Load profile (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Run the Gatling simulation
+        run: |
+          ./mvnw -B test-compile gatling:test \
+            -Dgatling.simulationClass=dev.diegonava.karate.CatalogLoadSimulation
+
+      - name: Upload the Gatling report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gatling-report
+          path: target/gatling
+          retention-days: 14
+          if-no-files-found: warn
+
   secrets-scan:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest

@@ -73,11 +73,12 @@ The real-service scenario passed in the same run. That difference is the whole p
 
 ## What the suite covers
 
-**24 scenarios across 3 features**, run four at a time.
+**38 scenarios across 4 features**, run four at a time.
 
 | Feature | What it pins down |
 | --- | --- |
 | [`books.feature`](src/test/resources/features/books.feature) | CRUD, and every happy path has a negative counterpart. The negatives assert on **SQLSTATE codes** — `23502`, `23505`, `23514`, `23503` — not on a bare 400. "Something was wrong" does not survive a refactor of how errors are surfaced; "a CHECK constraint rejected this" does. |
+| [`reviews.feature`](src/test/resources/features/reviews.feature) | `rating BETWEEN 1 AND 5`, at both boundaries and on **UPDATE as well as INSERT** — a constraint enforced only on the way in is a real and common bug that a passing create scenario says nothing about. |
 | [`embedding.feature`](src/test/resources/features/embedding.feature) | Nested resources assembled across three joined tables, `!inner` filtering that narrows the *parent*, and the difference between an empty embedded list and a missing one. |
 | [`contract.feature`](src/test/resources/features/contract.feature) | The mock and the real service answering the same consumer. |
 
@@ -92,6 +93,58 @@ scenario two hundred lines away had created it while the list assertion was coun
 not to serialise the suite. An exact count asserts that nothing else is happening, which is false
 by construction when four scenarios run at once, so the assertions now say what is actually being
 claimed: the seeded catalogue is present and every row is well formed.
+
+---
+
+## Proving the negative tests can fail
+
+Eleven scenarios assert that the API *rejects* something — fourteen executions, since one is an
+outline with four rows. All of them are green, and a green tick says nothing about whether the
+assertion held or simply never ran.
+
+So CI runs the whole suite a second time against
+[`init-weakened.sql`](src/test/resources/db/init-weakened.sql), a copy of the schema with the
+constraints those scenarios assert on removed. Each entry in
+[`mutation-expectations.txt`](src/test/resources/db/mutation-expectations.txt) must go red, by
+name — not merely "the suite failed", which one surviving failure would satisfy while every other
+mutation quietly stopped being caught.
+
+The most interesting entry in that file is not a negative scenario at all. With the unique index
+removed, the provider answers `201` where the consumer contract requires `409`, so **the contract
+fails against the real service** while the mock keeps passing. That is the same machinery that
+catches mock drift, running in the other direction — and the diff between the two runs points
+straight at the provider.
+
+Two scenarios are documented as *not* provable this way rather than counted. Both assert `23503`,
+and both are backed by foreign keys that PostgREST also uses to derive its embeddable
+relationships: dropping them would prove the assertions can fail and simultaneously break every
+scenario in `embedding.feature` for an unrelated reason. A mutation whose blast radius is the
+whole suite says nothing about the one assertion it was aimed at.
+
+---
+
+## Load, from the same feature files
+
+```bash
+./mvnw test-compile gatling:test -Dgatling.simulationClass=dev.diegonava.karate.CatalogLoadSimulation
+```
+
+[`CatalogLoadSimulation`](src/test/java/dev/diegonava/karate/CatalogLoadSimulation.java) drives the
+scenarios tagged `@perf` — **the same `.feature` files the correctness suite runs**, selected by
+tag rather than copied. In most stacks the load script is a parallel implementation of the API
+client that rots on its own schedule; here it cannot drift from the behaviour it is measuring,
+because it is the same text.
+
+`karate-gatling` brings Gatling's *Java* DSL, so the simulation is a plain Java class: no Scala
+source set, no second language to keep in step. Only read-only scenarios are tagged — replaying a
+write under load grows the table beneath the queries being timed, so the run would measure its own
+side effects.
+
+Last local run: **30 requests, 0 failed, mean 4 ms, p95 6 ms.**
+
+That number is a regression signal against a fixed stack — same containers, same seed, same
+machine — and nothing else. The database, the API and the load generator all share one host, so
+publishing it as throughput would be measuring Docker and calling it the API.
 
 ---
 
@@ -127,10 +180,9 @@ a container on. Testcontainers documents the singleton pattern for exactly this 
 
 ## Deliberately not covered
 
-- **Performance.** [`karate-gatling`](https://github.com/karatelabs/karate/tree/master/karate-gatling)
-  can reuse these same feature files as load scenarios, which is a genuinely good reason to pick
-  Karate. It is not here yet, and a load number measured against a container on a laptop would
-  describe Docker rather than the API.
+- **Performance as a *number*.** The Gatling profile above is a regression signal, not a capacity
+  figure, and CI runs it only on demand. A load profile in the per-push build turns every commit
+  into a timing measurement of whichever runner GitHub handed out.
 - **Authentication.** PostgREST supports JWT roles; this suite runs everything as one anonymous
   role. Adding auth would test PostgREST's implementation rather than this suite's ability to
   handle it.

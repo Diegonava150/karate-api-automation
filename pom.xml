@@ -29,15 +29,57 @@
     <slf4j.version>2.0.18</slf4j.version>
     <logback.version>1.5.20</logback.version>
     <surefire.version>3.5.6</surefire.version>
+    <gatling.plugin.version>4.21.10</gatling.plugin.version>
 
     <!-- Threads for the Karate parallel runner. Overridable = ./mvnw test -Dkarate.threads=1 -->
     <karate.threads>4</karate.threads>
   </properties>
 
+  <!--
+    Jackson, aligned by BOM rather than by luck.
+
+    Karate brings jackson-databind and jackson-core at 2.21.x, and something deeper in the tree
+    brings jackson-annotations at 2.10.3. Maven resolves by nearest-wins, so the 2.10 annotations
+    jar was the one on the classpath: a mismatched trio that the functional suite never noticed,
+    because nothing it does touches the classes that differ.
+
+    Gatling does. The load run died on
+    `NoClassDefFoundError: com/fasterxml/jackson/annotation/JsonSerializeAs`, an annotation that
+    simply does not exist in 2.10 — eleven minor versions of drift, invisible until a new
+    dependency happened to use the part of the API that had moved.
+
+    A BOM is the fix rather than pinning the one artifact that broke, because the next mismatch
+    would be just as silent.
+  -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>2.21.3</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <dependency>
       <groupId>io.karatelabs</groupId>
       <artifactId>karate-core</artifactId>
+      <version>${karate.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      The load profile reuses the functional feature files rather than restating them, which is
+      the second reason this project is in Karate. karate-gatling brings in Gatling's *Java* DSL
+      (gatling-core-java), so the simulation is a plain Java class and there is no Scala source
+      set, no scala-maven-plugin, and nothing to keep in step with a second language.
+    -->
+    <dependency>
+      <groupId>io.karatelabs</groupId>
+      <artifactId>karate-gatling</artifactId>
       <version>${karate.version}</version>
       <scope>test</scope>
     </dependency>
@@ -107,6 +149,24 @@
         <version>3.15.0</version>
       </plugin>
 
+      <!--
+        Deliberately not bound to a lifecycle phase. `mvn test` must stay fast and deterministic;
+        a load profile in the default build turns every push into a timing measurement of the
+        runner. Run it on demand:
+
+          ./mvnw gatling:test -Dgatling.simulationClass=dev.diegonava.karate.CatalogLoadSimulation
+      -->
+      <plugin>
+        <groupId>io.gatling</groupId>
+        <artifactId>gatling-maven-plugin</artifactId>
+        <version>${gatling.plugin.version}</version>
+        <configuration>
+          <!-- The simulation is Java and lives with the rest of the test sources. -->
+          <simulationsFolder>src/test/java</simulationsFolder>
+          <runMultipleSimulations>false</runMultipleSimulations>
+        </configuration>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
@@ -122,6 +182,13 @@
           <systemPropertyVariables>
             <karate.threads>${karate.threads}</karate.threads>
           </systemPropertyVariables>
+          <!--
+            The Gatling simulation is a test-source class with no @Test in it, and surefire's
+            default includes would try to run it as one.
+          -->
+          <excludes>
+            <exclude>**/*Simulation.java</exclude>
+          </excludes>
         </configuration>
       </plugin>
     </plugins>

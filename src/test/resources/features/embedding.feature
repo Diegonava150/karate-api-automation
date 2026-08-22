@@ -16,6 +16,7 @@ Feature: Nested resources are assembled and shaped correctly
   Background:
     * url baseUrl
 
+  @perf
   Scenario: An author embeds their books, and each book embeds its reviews
 
     Given path 'authors'
@@ -48,6 +49,7 @@ Feature: Nested resources are assembled and shaped correctly
     # Every embedded book belongs to this author and carries a well-formed shape.
     And match each response[0].books contains { authorId: 1, isbn: '#regex [0-9]{13}', priceUsd: '#number', pageCount: '#number', inPrint: '#boolean' }
 
+  @perf
   Scenario: Reviews come back nested inside the book they belong to
 
     Given path 'books'
