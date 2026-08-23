@@ -29,6 +29,32 @@ Feature: A stand-in for the catalog API
       ]
       """
     * def authorsById = { '1': { name: 'Ursula K. Le Guin', country: 'United States' } }
+    * def authors =
+      """
+      [
+        { id: 1, name: 'Ursula K. Le Guin', country: 'United States', email: 'ursula@example.com' },
+        { id: 2, name: 'Gabriel Garcia Marquez', country: 'Colombia', email: 'gabo@example.com' }
+      ]
+      """
+    * def reviews =
+      """
+      [
+        { id: 1, bookId: 1, reviewer: 'alex', rating: 5, body: 'A thought experiment that never stops being one.' },
+        { id: 2, bookId: 1, reviewer: 'sam',  rating: 4, body: 'Cold, in every sense.' }
+      ]
+      """
+
+    # Same operator-aware filter as selectedBooks, over a different collection and key. Two
+    # copies rather than one clever generic one: a mock is read far more often than it is
+    # edited, and the parameterised version was harder to follow than the duplication.
+    * def selectedReviews =
+      """
+      function(params) {
+        if (!params || !params.bookId) return reviews;
+        var wanted = parseInt(('' + params.bookId[0]).replace('eq.', ''));
+        return karate.filter(reviews, function(r){ return r.bookId == wanted });
+      }
+      """
 
     # Nothing request-dependent belongs here. A mock's Background is evaluated once, when the
     # server starts, so paramExists/paramValue/request are simply not defined yet — the error
@@ -88,6 +114,16 @@ Feature: A stand-in for the catalog API
 
     * def responseStatus = 200
     * def response = selectedBooks(requestParams)
+
+  Scenario: pathMatches('/authors')
+
+    * def responseStatus = 200
+    * def response = authors
+
+  Scenario: pathMatches('/reviews')
+
+    * def responseStatus = 200
+    * def response = selectedReviews(requestParams)
 
   Scenario:
 

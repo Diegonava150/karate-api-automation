@@ -58,6 +58,11 @@ records only what a caller actually depends on — shapes, not values, and delib
 everything the API can do, because a contract that restates the whole implementation pins the
 provider in place and stops being a contract. It is then run against both.
 
+It covers all three resources. It did not at first: only `/books` was in the contract, which meant
+the mock was free to know nothing whatsoever about authors or reviews and still be declared in
+agreement with the provider. A contract narrower than the thing it certifies is the same failure
+as a mock checked against itself, one level up.
+
 **That comparison is itself verified.** CI has a second job that removes one field from the mock
 and requires the suite to go red — and to go red *for that reason*, in the right scenario, with
 the real service still passing. A green result there would mean the contract check had quietly
