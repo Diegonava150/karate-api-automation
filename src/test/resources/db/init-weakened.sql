@@ -23,9 +23,14 @@ CREATE SCHEMA IF NOT EXISTS api;
 
 CREATE TABLE api.authors (
     id         serial PRIMARY KEY,
-    "name"     text NOT NULL CHECK (length(btrim("name")) > 0),
-    country    text NOT NULL,
-    email      text NOT NULL UNIQUE CHECK (email LIKE '%@%.%')
+    -- NOT NULL removed ("an author with no name is rejected", 23502) and the CHECK removed
+    -- ("a name that is only whitespace is rejected", 23514).
+    "name"     text,
+    -- NOT NULL removed: "an author with no country is rejected" asserts 23502.
+    country    text,
+    -- UNIQUE removed (duplicate email on create and on update, both 23505) and the format CHECK
+    -- removed (the three malformed-address rows, 23514).
+    email      text NOT NULL
 );
 
 -- ------------------------------------------------------------------- books

@@ -1,47 +1,57 @@
-# Every scenario that MUST fail when the suite runs against init-weakened.sql.
+# The ledger of which negative tests have been watched failing.
 #
-# The "Prove the negative tests can fail" job reads this file and requires each line below to
-# appear in Karate's failure list. Requiring only that the suite went red would be satisfied by
-# a single surviving failure while every other mutation quietly stopped being caught — "something
-# failed" is not the claim worth making. "Each of these ten assertions has teeth" is.
+# Every scenario listed under `expect:` MUST fail when the suite runs against init-weakened.sql.
+# The "Prove the negative tests can fail" job reads this file and requires each one by name.
+# Requiring only that the suite went red would be satisfied by a single surviving failure while
+# every other mutation quietly stopped being caught — "something failed" is not the claim worth
+# making. "Each of these sixteen assertions has teeth" is.
 #
-# The names are Karate's own, copied from a real mutation run rather than guessed. A Scenario
-# Outline collapses to its base name, which is why the four out-of-range ratings appear once.
+# Names are Karate's own, copied from a real mutation run rather than guessed. A Scenario Outline
+# collapses to its base name, which is why the four out-of-range ratings and the three malformed
+# emails each appear once.
 #
-# Adding a constraint to init.sql and a scenario asserting it means adding two more things: the
-# weakening in init-weakened.sql, and a line here.
+# This file cannot go stale unnoticed. The same job cross-checks it against every scenario tagged
+# @negative in the suite: add one without accounting for it here and the build fails. That is the
+# whole reason the tag exists — before this, four of the five tag families in the repository
+# selected nothing at all and were config that looked like a feature.
 
-Creating a book without a required field is rejected
-Creating a book with a duplicate ISBN is rejected
-Creating a book with a negative price is rejected
-Creating a book with no pages is rejected
-Updating a book into a duplicate ISBN is rejected
-A rating outside one to five is rejected
-A review with no reviewer is rejected
-A review whose reviewer is only whitespace is rejected
-A rating cannot be corrected out of range
-the real service satisfies the consumer contract
+expect: Creating a book without a required field is rejected
+expect: Creating a book with a duplicate ISBN is rejected
+expect: Creating a book with a negative price is rejected
+expect: Creating a book with no pages is rejected
+expect: Updating a book into a duplicate ISBN is rejected
+expect: A rating outside one to five is rejected
+expect: A review with no reviewer is rejected
+expect: A review whose reviewer is only whitespace is rejected
+expect: A rating cannot be corrected out of range
+expect: An author with a duplicate email is rejected
+expect: An email that is not an email is rejected
+expect: An author with no name is rejected
+expect: An author whose name is only whitespace is rejected
+expect: An author with no country is rejected
+expect: An author cannot be updated into a duplicate email
 
-# ---------------------------------------------------------------------------------------------
-# That last line is not a negative scenario, and it is the most interesting entry here.
+# Not a negative scenario, and the most interesting entry here.
 #
 # The consumer contract requires a duplicate ISBN to come back as 409 with SQLSTATE 23505. With
 # the unique index removed the provider answers 201, so the contract fails against the *real
-# service* — which is the same machinery that catches mock drift, working in the other
-# direction. The mock keeps passing, because the mock still honours the contract; the diff
-# between the two runs points straight at the provider.
-#
+# service* — the same machinery that catches mock drift, working in the other direction. The mock
+# keeps passing, because the mock still honours the contract, and the difference between the two
+# runs points straight at the provider.
+expect: the real service satisfies the consumer contract
+
 # ---------------------------------------------------------------------------------------------
-# Deliberately absent, and why.
+# Negative scenarios this technique cannot reach. Listed rather than omitted, so the cross-check
+# above can tell "accounted for" apart from "forgotten".
+
+not-coverable: Creating a book against an author who does not exist is rejected
+not-coverable: A review against a book that does not exist is rejected
+
+# Both assert 23503, and both are backed by foreign keys that init-weakened.sql deliberately
+# leaves alone. Dropping those keys would prove the assertions can fail and would simultaneously
+# delete the capability the rest of the suite is built on: PostgREST derives its embeddable
+# relationships from exactly these constraints, so every scenario in embedding.feature would fail
+# for an unrelated reason.
 #
-#   Creating a book against an author who does not exist is rejected
-#   A review against a book that does not exist is rejected
-#
-# Both assert 23503, and both are backed by foreign keys that init-weakened.sql leaves alone.
-# Dropping those keys would prove the assertions can fail and would simultaneously delete the
-# capability the rest of the suite is built on: PostgREST derives embeddable relationships from
-# exactly these constraints, so every scenario in embedding.feature would fail for an unrelated
-# reason. A mutation whose blast radius is the whole suite says nothing about the one assertion
-# it was aimed at.
-#
-# Worth having, then, just not provable this way — recorded rather than counted.
+# A mutation whose blast radius is the whole suite says nothing about the one assertion it was
+# aimed at. Worth having, then — just not provable this way.
