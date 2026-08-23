@@ -188,6 +188,15 @@
           -->
           <excludes>
             <exclude>**/*Simulation.java</exclude>
+            <!--
+              The performance suite needs a fixture the functional suite must not have: ten
+              thousand books rather than four. Run on its own, with the volume data layered in -
+
+                ./mvnw test -Dtest=PerformanceTest -Dapi.extraData=db/volume.sql                             -DfailIfNoSpecifiedTests=false
+
+              `-Dtest` overrides this exclusion, which is what makes that command work.
+            -->
+            <exclude>**/PerformanceTest.java</exclude>
           </excludes>
         </configuration>
       </plugin>

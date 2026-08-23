@@ -1,5 +1,6 @@
 package dev.diegonava.karate;
 
+import static io.gatling.javaapi.core.CoreDsl.global;
 import static io.gatling.javaapi.core.CoreDsl.rampUsers;
 import static io.gatling.javaapi.core.CoreDsl.scenario;
 import static io.karatelabs.gatling.KarateDsl.karateFeature;
@@ -69,6 +70,15 @@ public class CatalogLoadSimulation extends Simulation {
         int rampSeconds = Integer.getInteger("perf.ramp.seconds", 10);
 
         setUp(readCatalog.injectOpen(rampUsers(users).during(java.time.Duration.ofSeconds(rampSeconds))))
-                .protocols(protocol);
+                .protocols(protocol)
+                // The only absolute assertion here, and the only one that means the same thing on
+                // every machine. Zero failed requests under concurrency is a property of the code;
+                // a latency threshold is a property of whichever runner GitHub handed out, which
+                // is why there is not one.
+                //
+                // It is not a formality either: connection-pool exhaustion, a transaction deadlock
+                // and a 5xx under contention all land here, and none of them shows up in a
+                // single-user functional run.
+                .assertions(global().failedRequests().count().is(0L));
     }
 }

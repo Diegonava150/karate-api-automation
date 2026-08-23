@@ -67,6 +67,19 @@ CREATE TABLE api.reviews (
     body       text NOT NULL DEFAULT ''
 );
 
+-- ----------------------------------------------------------------- indexes
+--
+-- Postgres indexes a PRIMARY KEY and a UNIQUE constraint automatically. It does not index the
+-- referencing side of a FOREIGN KEY, which is the side every child lookup filters on — and the
+-- one every embedded query joins on.
+--
+-- Found by reading a query plan at realistic volume rather than by timing anything. With fifty
+-- thousand reviews, `/reviews?bookId=eq.500` was a Seq Scan costing 993 to return five rows;
+-- with this index it is a Bitmap Heap Scan costing 22.67. The same plan against the eleven-row
+-- seed showed nothing at all, which is exactly why db/volume.sql exists.
+CREATE INDEX books_author_idx  ON api.books ("authorId");
+CREATE INDEX reviews_book_idx  ON api.reviews ("bookId");
+
 -- -------------------------------------------------------------------- seed
 
 INSERT INTO api.authors (id, "name", country, email) VALUES
