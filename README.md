@@ -73,10 +73,11 @@ The real-service scenario passed in the same run. That difference is the whole p
 
 ## What the suite covers
 
-**38 scenarios across 4 features**, run four at a time.
+**50 scenarios across 5 features**, run four at a time.
 
 | Feature | What it pins down |
 | --- | --- |
+| [`authors.feature`](src/test/resources/features/authors.feature) | `UNIQUE(email)` on create *and* update, the deliberately weak `email LIKE '%@%.%'` check, non-blank names, and a two-hop cascade — deleting an author takes their books and the reviews of those books. The second hop is the one worth asserting: a schema that cascades one level and orphans the next looks correct from the parent. |
 | [`books.feature`](src/test/resources/features/books.feature) | CRUD, and every happy path has a negative counterpart. The negatives assert on **SQLSTATE codes** — `23502`, `23505`, `23514`, `23503` — not on a bare 400. "Something was wrong" does not survive a refactor of how errors are surfaced; "a CHECK constraint rejected this" does. |
 | [`reviews.feature`](src/test/resources/features/reviews.feature) | `rating BETWEEN 1 AND 5`, at both boundaries and on **UPDATE as well as INSERT** — a constraint enforced only on the way in is a real and common bug that a passing create scenario says nothing about. |
 | [`embedding.feature`](src/test/resources/features/embedding.feature) | Nested resources assembled across three joined tables, `!inner` filtering that narrows the *parent*, and the difference between an empty embedded list and a missing one. |
@@ -98,9 +99,8 @@ claimed: the seeded catalogue is present and every row is well formed.
 
 ## Proving the negative tests can fail
 
-Eleven scenarios assert that the API *rejects* something — fourteen executions, since one is an
-outline with four rows. All of them are green, and a green tick says nothing about whether the
-assertion held or simply never ran.
+Seventeen scenarios assert that the API *rejects* something. All of them are green, and a green
+tick says nothing about whether the assertion held or simply never ran.
 
 So CI runs the whole suite a second time against
 [`init-weakened.sql`](src/test/resources/db/init-weakened.sql), a copy of the schema with the
@@ -114,6 +114,17 @@ removed, the provider answers `201` where the consumer contract requires `409`, 
 fails against the real service** while the mock keeps passing. That is the same machinery that
 catches mock drift, running in the other direction — and the diff between the two runs points
 straight at the provider.
+
+**The ledger cannot go stale unnoticed.** A separate check —
+[`check_mutation_ledger.py`](scripts/check_mutation_ledger.py), runnable locally — cross-references
+every `@negative` scenario against the ledger and fails the build if one is unaccounted for, or if
+the ledger names a scenario that no longer exists. Add a negative test and forget the ledger, and
+the mutation job would otherwise keep passing on the entries it still knows about: nothing red,
+and the coverage number quietly a lie.
+
+That check is the entire reason the tag exists. Before it, four of this repository's five tag
+families — `@smoke`, `@catalog`, `@contract`, `@negative` — selected nothing at all. Decoration
+that looked like configuration, so three were deleted and the fourth was given a job.
 
 Two scenarios are documented as *not* provable this way rather than counted. Both assert `23503`,
 and both are backed by foreign keys that PostgREST also uses to derive its embeddable

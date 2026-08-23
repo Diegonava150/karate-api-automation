@@ -156,6 +156,13 @@ jobs:
           java-version: 21
           cache: maven
 
+      # The ledger has to describe the suite that exists, not the one that existed when it was
+      # written. Add a negative test and forget the ledger, and this job keeps passing on the
+      # entries it still knows about: nothing goes red, and the coverage number quietly becomes
+      # a lie. Runs locally too - python3 scripts/check_mutation_ledger.py
+      - name: The ledger accounts for every @negative scenario
+        run: python3 scripts/check_mutation_ledger.py
+
       - name: Run against a schema with the constraints removed
         run: |
           ./mvnw -B clean test -Dapi.schema=db/init-weakened.sql > mutation.log 2>&1 \
@@ -172,7 +179,7 @@ jobs:
           # evidence. A Scenario Outline collapses to its base name, which is why the four
           # out-of-range ratings are one entry.
           grep -E '^\s+- ' mutation.log | sed 's/^ *- //' | sort -u > failed.txt
-          grep -vE '^\s*(#|$)' src/test/resources/db/mutation-expectations.txt | sort -u > expected.txt
+          sed -n 's/^expect: *//p' src/test/resources/db/mutation-expectations.txt | sort -u > expected.txt
 
           echo "### Mutation coverage" >> "$GITHUB_STEP_SUMMARY"
           status=0

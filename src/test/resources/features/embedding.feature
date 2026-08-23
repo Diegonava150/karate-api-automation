@@ -1,4 +1,3 @@
-@catalog
 Feature: Nested resources are assembled and shaped correctly
 
   # This is the file that justifies choosing Karate for this project.

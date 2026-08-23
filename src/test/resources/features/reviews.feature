@@ -1,4 +1,3 @@
-@catalog
 Feature: Reviews are constrained to the ratings a review can actually have
 
   # The reviews table existed with a CHECK on rating and no test of any kind against it, which
@@ -11,7 +10,6 @@ Feature: Reviews are constrained to the ratings a review can actually have
 
   # ------------------------------------------------------------------ read
 
-  @smoke
   Scenario: List every review
     Given path 'reviews'
     When method get

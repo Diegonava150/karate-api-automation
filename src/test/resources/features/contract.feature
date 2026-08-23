@@ -1,4 +1,3 @@
-@contract
 Feature: The mock and the real service answer the same consumer
 
   # The point of the whole contract directory.

@@ -1,4 +1,3 @@
-@catalog
 Feature: Books can be read, created, changed and deleted
 
   # Every happy path here has a negative counterpart, and the negatives assert on SQLSTATE
@@ -83,6 +82,7 @@ Feature: Books can be read, created, changed and deleted
     When method delete
     Then status 204
 
+  @negative
   Scenario: Creating a book without a required field is rejected
     Given path 'books'
     And request { authorId: 1, isbn: '9780000000001', priceUsd: 9.99, pageCount: 100, published: '2020-01-01' }
@@ -90,6 +90,7 @@ Feature: Books can be read, created, changed and deleted
     Then status 400
     And match response.code == '23502'
 
+  @negative
   Scenario: Creating a book with a duplicate ISBN is rejected
     Given path 'books'
     And request { title: 'Impostor', authorId: 1, isbn: '9780441478125', priceUsd: 9.99, pageCount: 100, published: '2020-01-01' }
@@ -97,6 +98,7 @@ Feature: Books can be read, created, changed and deleted
     Then status 409
     And match response.code == '23505'
 
+  @negative
   Scenario: Creating a book with a negative price is rejected
     Given path 'books'
     And request { title: 'Free Money', authorId: 1, isbn: '9780000000002', priceUsd: -0.01, pageCount: 100, published: '2020-01-01' }
@@ -104,6 +106,7 @@ Feature: Books can be read, created, changed and deleted
     Then status 400
     And match response.code == '23514'
 
+  @negative
   Scenario: Creating a book with no pages is rejected
     Given path 'books'
     And request { title: 'Empty', authorId: 1, isbn: '9780000000003', priceUsd: 5.00, pageCount: 0, published: '2020-01-01' }
@@ -111,6 +114,7 @@ Feature: Books can be read, created, changed and deleted
     Then status 400
     And match response.code == '23514'
 
+  @negative
   Scenario: Creating a book against an author who does not exist is rejected
 
     # The foreign key is load-bearing for the embedding scenarios, so it is worth a test of its
@@ -152,6 +156,7 @@ Feature: Books can be read, created, changed and deleted
     Then status 200
     And match response == []
 
+  @negative
   Scenario: Updating a book into a duplicate ISBN is rejected
     Given path 'books'
     And param id = 'eq.2'
