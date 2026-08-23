@@ -119,6 +119,7 @@ Feature: What a consumer of the catalog API relies on
     # the thing that breaks on a library upgrade.
     Given path 'books'
     And request { title: 'Contract Probe', authorId: 1, isbn: '9780441478125', priceUsd: 1.00, pageCount: 1, published: '2020-01-01' }
+    And headers writerAuth
     When method post
     Then status 409
     And match response contains { code: '23505' }

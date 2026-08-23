@@ -44,6 +44,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
     Given path 'reviews'
     And headers returnRepresentation
     And request { bookId: 2, reviewer: 'dana', rating: 4, body: 'Quietly enormous.' }
+    And headers writerAuth
     When method post
     Then status 201
     And match response[0] contains { bookId: 2, reviewer: 'dana', rating: 4 }
@@ -51,6 +52,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
 
     Given path 'reviews'
     And param id = 'eq.' + created
+    And headers writerAuth
     When method delete
     Then status 204
 
@@ -61,6 +63,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
     Given path 'reviews'
     And headers returnRepresentation
     And request { bookId: 2, reviewer: 'terse', rating: 3 }
+    And headers writerAuth
     When method post
     Then status 201
     And match response[0].body == ''
@@ -68,6 +71,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
 
     Given path 'reviews'
     And param id = 'eq.' + created
+    And headers writerAuth
     When method delete
     Then status 204
 
@@ -79,6 +83,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
     # but not where it sits.
     Given path 'reviews'
     And request { bookId: 1, reviewer: 'out-of-range', rating: <rating>, body: '' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23514'
@@ -94,6 +99,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
   Scenario: A review with no reviewer is rejected
     Given path 'reviews'
     And request { bookId: 1, rating: 3, body: '' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23502'
@@ -102,6 +108,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
   Scenario: A review whose reviewer is only whitespace is rejected
     Given path 'reviews'
     And request { bookId: 1, reviewer: '   ', rating: 3, body: '' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23514'
@@ -110,6 +117,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
   Scenario: A review against a book that does not exist is rejected
     Given path 'reviews'
     And request { bookId: 999999, reviewer: 'ghost', rating: 3, body: '' }
+    And headers writerAuth
     When method post
     Then status 409
     And match response.code == '23503'
@@ -121,6 +129,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
     And param id = 'eq.2'
     And headers returnRepresentation
     And request { rating: 3 }
+    And headers writerAuth
     When method patch
     Then status 200
     And match response[0].rating == 3
@@ -128,6 +137,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
     Given path 'reviews'
     And param id = 'eq.2'
     And request { rating: 4 }
+    And headers writerAuth
     When method patch
     Then status 204
 
@@ -140,6 +150,7 @@ Feature: Reviews are constrained to the ratings a review can actually have
     Given path 'reviews'
     And param id = 'eq.2'
     And request { rating: 0 }
+    And headers writerAuth
     When method patch
     Then status 400
     And match response.code == '23514'

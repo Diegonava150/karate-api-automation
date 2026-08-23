@@ -61,6 +61,12 @@ class KarateSuiteTest {
         SuiteResult results = Runner.path("classpath:features")
                 .systemProperty("api.baseUrl", baseUrl)
                 .systemProperty("mock.baseUrl", mockUrl)
+                // Minted here for the same reason the base URL is passed in here: the scenarios
+                // should not know how a token is made, only that they have one.
+                .systemProperty("token.writer", JwtTokens.forRole("catalog_writer"))
+                .systemProperty("token.reader", JwtTokens.forRole("catalog_reader"))
+                .systemProperty("token.expired", JwtTokens.expiredForRole("catalog_writer"))
+                .systemProperty("token.forged", JwtTokens.forgedForRole("catalog_writer"))
                 .outputHtmlReport(true)
                 // Consumed by CI to publish a report, and by anyone who wants the results in a
                 // format other than Karate's own HTML.

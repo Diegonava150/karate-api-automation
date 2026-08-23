@@ -81,10 +81,27 @@ SELECT setval('api.reviews_id_seq', 4, true);
 -- requests. Without the switch every request is rejected before it reaches a table, and
 -- the failure looks like a broken container rather than a missing grant.
 
+-- Anonymous callers may read and nothing else. Writing requires a JWT naming a role that has
+-- been granted the privilege, which is the arrangement PostgREST is built around: the token
+-- carries no permissions of its own, it names a Postgres role, and these grants decide what that
+-- role can do. Authorisation lives in the schema, so it can be asserted on rather than mocked.
 CREATE ROLE web_anon NOLOGIN;
 GRANT USAGE ON SCHEMA api TO web_anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA api TO web_anon;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA api TO web_anon;
+GRANT SELECT ON ALL TABLES IN SCHEMA api TO web_anon;
+
+-- A reader that is authenticated and still may not write. Worth having as its own role: a suite
+-- that only tests "anonymous cannot write" leaves the far more common production bug untouched,
+-- which is a valid token whose role was granted more than anyone intended.
+CREATE ROLE catalog_reader NOLOGIN;
+GRANT USAGE ON SCHEMA api TO catalog_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA api TO catalog_reader;
+
+CREATE ROLE catalog_writer NOLOGIN;
+GRANT USAGE ON SCHEMA api TO catalog_writer;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA api TO catalog_writer;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA api TO catalog_writer;
 
 CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'postgrest_pw';
 GRANT web_anon TO authenticator;
+GRANT catalog_reader TO authenticator;
+GRANT catalog_writer TO authenticator;

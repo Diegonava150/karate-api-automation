@@ -34,6 +34,7 @@ Feature: Authors are unique by email and cannot be blank
     Given path 'authors'
     And headers returnRepresentation
     And request { name: 'Octavia E. Butler', country: 'United States', email: 'octavia@example.com' }
+    And headers writerAuth
     When method post
     Then status 201
     And match response[0] contains { name: 'Octavia E. Butler', country: 'United States' }
@@ -41,6 +42,7 @@ Feature: Authors are unique by email and cannot be blank
 
     Given path 'authors'
     And param id = 'eq.' + created
+    And headers writerAuth
     When method delete
     Then status 204
 
@@ -48,6 +50,7 @@ Feature: Authors are unique by email and cannot be blank
   Scenario: An author with a duplicate email is rejected
     Given path 'authors'
     And request { name: 'Not Ursula', country: 'Elsewhere', email: 'ursula@example.com' }
+    And headers writerAuth
     When method post
     Then status 409
     And match response.code == '23505'
@@ -60,6 +63,7 @@ Feature: Authors are unique by email and cannot be blank
     # someone from quietly "improving" the constraint into something that rejects real addresses.
     Given path 'authors'
     And request { name: 'Bad Email', country: 'Nowhere', email: '<email>' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23514'
@@ -74,6 +78,7 @@ Feature: Authors are unique by email and cannot be blank
   Scenario: An author with no name is rejected
     Given path 'authors'
     And request { country: 'Nowhere', email: 'nameless@example.com' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23502'
@@ -82,6 +87,7 @@ Feature: Authors are unique by email and cannot be blank
   Scenario: An author whose name is only whitespace is rejected
     Given path 'authors'
     And request { name: '   ', country: 'Nowhere', email: 'blank@example.com' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23514'
@@ -90,6 +96,7 @@ Feature: Authors are unique by email and cannot be blank
   Scenario: An author with no country is rejected
     Given path 'authors'
     And request { name: 'Stateless', email: 'stateless@example.com' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23502'
@@ -104,6 +111,7 @@ Feature: Authors are unique by email and cannot be blank
     Given path 'authors'
     And param id = 'eq.2'
     And request { email: 'ursula@example.com' }
+    And headers writerAuth
     When method patch
     Then status 409
     And match response.code == '23505'
@@ -118,6 +126,7 @@ Feature: Authors are unique by email and cannot be blank
     Given path 'authors'
     And headers returnRepresentation
     And request { name: 'Ephemeral', country: 'Nowhere', email: 'ephemeral@example.com' }
+    And headers writerAuth
     When method post
     Then status 201
     * def authorId = response[0].id
@@ -125,17 +134,20 @@ Feature: Authors are unique by email and cannot be blank
     Given path 'books'
     And headers returnRepresentation
     And request { title: 'Doomed', authorId: '#(authorId)', isbn: '9780000000009', priceUsd: 1.00, pageCount: 1, published: '2020-01-01' }
+    And headers writerAuth
     When method post
     Then status 201
     * def bookId = response[0].id
 
     Given path 'reviews'
     And request { bookId: '#(bookId)', reviewer: 'doomed', rating: 3, body: '' }
+    And headers writerAuth
     When method post
     Then status 201
 
     Given path 'authors'
     And param id = 'eq.' + authorId
+    And headers writerAuth
     When method delete
     Then status 204
 

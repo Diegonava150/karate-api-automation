@@ -55,3 +55,25 @@ not-coverable: A review against a book that does not exist is rejected
 #
 # A mutation whose blast radius is the whole suite says nothing about the one assertion it was
 # aimed at. Worth having, then — just not provable this way.
+
+# ---------------------------------------------------------------------------------------------
+# Authorisation, which this technique cannot reach for a different reason.
+#
+# These assert that a request is *refused* — 401 unauthenticated, 403 authenticated but not
+# permitted — and every one of them is enforced by a GRANT rather than by a constraint. The
+# weakened schema removes constraints and leaves the permission model untouched, deliberately:
+# stripping GRANTs would refuse every write in the suite and turn a targeted mutation into a
+# blackout.
+#
+# They are still watched failing, just by a different mechanism. Removing the writer token from
+# one create scenario produced 401 where 201 was expected, which is how the thirty-nine auth
+# headers added across the suite are known to matter rather than merely to be present.
+
+not-coverable: An anonymous write is refused
+not-coverable: An anonymous delete is refused
+not-coverable: A reader token cannot write
+not-coverable: A reader token cannot delete
+not-coverable: An expired token is refused
+not-coverable: A token signed with the wrong key is refused
+not-coverable: A malformed token is refused
+not-coverable: A reader token cannot be used to escalate by asking for a different role
