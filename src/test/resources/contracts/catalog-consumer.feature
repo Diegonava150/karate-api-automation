@@ -66,6 +66,53 @@ Feature: What a consumer of the catalog API relies on
     Then status 200
     And match response == []
 
+  Scenario: A consumer can list authors and read the fields it renders
+
+    # The catalogue UI shows an author beside every book, so the author list is as much a
+    # dependency as the book list. It was not in the contract, which meant the mock was free to
+    # know nothing about authors at all and still be declared in agreement with the provider.
+    Given path 'authors'
+    When method get
+    Then status 200
+    And match response == '#[_ > 0]'
+    And match each response contains
+      """
+      {
+        id: '#number',
+        name: '#string',
+        country: '#string'
+      }
+      """
+
+  Scenario: A consumer can fetch the reviews for one book
+
+    # Filtered by the parent id, which is the only way a client ever asks for reviews. Asserting
+    # the unfiltered list would let the provider drop filtering entirely and still pass.
+    Given path 'reviews'
+    And param bookId = 'eq.1'
+    When method get
+    Then status 200
+    And match response == '#[_ > 0]'
+    And match each response contains
+      """
+      {
+        id: '#number',
+        bookId: 1,
+        reviewer: '#string',
+        rating: '#? _ >= 1 && _ <= 5'
+      }
+      """
+
+  Scenario: Reviews for a book with none is an empty list
+
+    # Same promise as the missing book above, one resource along. A client that renders a review
+    # count breaks on null and not on [].
+    Given path 'reviews'
+    And param bookId = 'eq.999999'
+    When method get
+    Then status 200
+    And match response == []
+
   Scenario: A rejected write explains itself with a machine-readable code
 
     # Consumers branch on this. A 400 alone forces string-matching on a human message, which is
