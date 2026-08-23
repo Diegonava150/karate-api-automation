@@ -34,7 +34,15 @@ function fn() {
     // Asking PostgREST to hand back the row it just wrote turns a 201-with-empty-body into a
     // 201 carrying the created resource, so a create can be asserted on in one step instead of
     // a create followed by a read.
-    returnRepresentation: { Prefer: 'return=representation' }
+    returnRepresentation: { Prefer: 'return=representation' },
+
+    // Anonymous callers may read; every write needs a role that has been granted the privilege.
+    // Handed in by the runner rather than built here — signing HS256 in JavaScript would be a
+    // second implementation of something Java already does in twenty lines.
+    writerAuth: { Authorization: 'Bearer ' + karate.properties['token.writer'] },
+    readerAuth: { Authorization: 'Bearer ' + karate.properties['token.reader'] },
+    expiredAuth: { Authorization: 'Bearer ' + karate.properties['token.expired'] },
+    forgedAuth: { Authorization: 'Bearer ' + karate.properties['token.forged'] }
   };
 
   // Fail fast rather than let every scenario time out separately.

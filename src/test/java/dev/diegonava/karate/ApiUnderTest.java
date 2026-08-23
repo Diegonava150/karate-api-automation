@@ -74,6 +74,10 @@ public final class ApiUnderTest {
                                     .formatted(POSTGREST_ROLE, POSTGREST_PASSWORD, DB_NAME))
                     .withEnv("PGRST_DB_SCHEMA", SCHEMA)
                     .withEnv("PGRST_DB_ANON_ROLE", ANON_ROLE)
+                    // Without this every bearer token is rejected and the failure looks like a
+                    // permissions bug rather than a missing configuration value. PostgREST
+                    // refuses secrets shorter than 32 characters outright.
+                    .withEnv("PGRST_JWT_SECRET", JwtTokens.SECRET)
                     // Without this PostgREST caches the schema at boot and never notices the
                     // tables, answering 404 for every endpoint that plainly exists.
                     .withEnv("PGRST_DB_CONFIG", "false")

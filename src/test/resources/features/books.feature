@@ -70,6 +70,7 @@ Feature: Books can be read, created, changed and deleted
     Given path 'books'
     And headers returnRepresentation
     And request { title: 'The Dispossessed', authorId: 1, isbn: '9780061054884', priceUsd: 15.75, pageCount: 387, published: '1974-05-01', inPrint: true }
+    And headers writerAuth
     When method post
     Then status 201
     And match response[0] contains { title: 'The Dispossessed', authorId: 1, pageCount: 387 }
@@ -79,6 +80,7 @@ Feature: Books can be read, created, changed and deleted
     # warm container.
     Given path 'books'
     And param id = 'eq.' + created
+    And headers writerAuth
     When method delete
     Then status 204
 
@@ -86,6 +88,7 @@ Feature: Books can be read, created, changed and deleted
   Scenario: Creating a book without a required field is rejected
     Given path 'books'
     And request { authorId: 1, isbn: '9780000000001', priceUsd: 9.99, pageCount: 100, published: '2020-01-01' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23502'
@@ -94,6 +97,7 @@ Feature: Books can be read, created, changed and deleted
   Scenario: Creating a book with a duplicate ISBN is rejected
     Given path 'books'
     And request { title: 'Impostor', authorId: 1, isbn: '9780441478125', priceUsd: 9.99, pageCount: 100, published: '2020-01-01' }
+    And headers writerAuth
     When method post
     Then status 409
     And match response.code == '23505'
@@ -102,6 +106,7 @@ Feature: Books can be read, created, changed and deleted
   Scenario: Creating a book with a negative price is rejected
     Given path 'books'
     And request { title: 'Free Money', authorId: 1, isbn: '9780000000002', priceUsd: -0.01, pageCount: 100, published: '2020-01-01' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23514'
@@ -110,6 +115,7 @@ Feature: Books can be read, created, changed and deleted
   Scenario: Creating a book with no pages is rejected
     Given path 'books'
     And request { title: 'Empty', authorId: 1, isbn: '9780000000003', priceUsd: 5.00, pageCount: 0, published: '2020-01-01' }
+    And headers writerAuth
     When method post
     Then status 400
     And match response.code == '23514'
@@ -121,6 +127,7 @@ Feature: Books can be read, created, changed and deleted
     # own rather than being assumed to exist because a join happened to work.
     Given path 'books'
     And request { title: 'Orphan', authorId: 999999, isbn: '9780000000004', priceUsd: 5.00, pageCount: 10, published: '2020-01-01' }
+    And headers writerAuth
     When method post
     Then status 409
     And match response.code == '23503'
@@ -136,6 +143,7 @@ Feature: Books can be read, created, changed and deleted
     And param id = 'eq.2'
     And headers returnRepresentation
     And request { priceUsd: 12.99 }
+    And headers writerAuth
     When method patch
     Then status 200
     And match response[0].priceUsd == 12.99
@@ -144,6 +152,7 @@ Feature: Books can be read, created, changed and deleted
     Given path 'books'
     And param id = 'eq.2'
     And request { priceUsd: 11.50 }
+    And headers writerAuth
     When method patch
     Then status 204
 
@@ -152,6 +161,7 @@ Feature: Books can be read, created, changed and deleted
     And param id = 'eq.999999'
     And headers returnRepresentation
     And request { priceUsd: 1.00 }
+    And headers writerAuth
     When method patch
     Then status 200
     And match response == []
@@ -161,6 +171,7 @@ Feature: Books can be read, created, changed and deleted
     Given path 'books'
     And param id = 'eq.2'
     And request { isbn: '9780441478125' }
+    And headers writerAuth
     When method patch
     Then status 409
     And match response.code == '23505'
@@ -172,6 +183,7 @@ Feature: Books can be read, created, changed and deleted
     # Idempotent by design: DELETE says "ensure this is gone", and it is gone.
     Given path 'books'
     And param id = 'eq.999999'
+    And headers writerAuth
     When method delete
     Then status 204
 
@@ -183,17 +195,20 @@ Feature: Books can be read, created, changed and deleted
     Given path 'books'
     And headers returnRepresentation
     And request { title: 'Temporary', authorId: 2, isbn: '9780000000005', priceUsd: 1.00, pageCount: 1, published: '2020-01-01' }
+    And headers writerAuth
     When method post
     Then status 201
     * def bookId = response[0].id
 
     Given path 'reviews'
     And request { bookId: '#(bookId)', reviewer: 'temp', rating: 3, body: 'to be cascaded' }
+    And headers writerAuth
     When method post
     Then status 201
 
     Given path 'books'
     And param id = 'eq.' + bookId
+    And headers writerAuth
     When method delete
     Then status 204
 

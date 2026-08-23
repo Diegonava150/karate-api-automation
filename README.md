@@ -82,7 +82,7 @@ The real-service scenario passed in the same run. That difference is the whole p
 
 ## What the suite covers
 
-**50 scenarios across 5 features**, run four at a time.
+**63 scenarios across 6 features**, run four at a time.
 
 | Feature | What it pins down |
 | --- | --- |
@@ -90,6 +90,7 @@ The real-service scenario passed in the same run. That difference is the whole p
 | [`books.feature`](src/test/resources/features/books.feature) | CRUD, and every happy path has a negative counterpart. The negatives assert on **SQLSTATE codes** — `23502`, `23505`, `23514`, `23503` — not on a bare 400. "Something was wrong" does not survive a refactor of how errors are surfaced; "a CHECK constraint rejected this" does. |
 | [`reviews.feature`](src/test/resources/features/reviews.feature) | `rating BETWEEN 1 AND 5`, at both boundaries and on **UPDATE as well as INSERT** — a constraint enforced only on the way in is a real and common bug that a passing create scenario says nothing about. |
 | [`embedding.feature`](src/test/resources/features/embedding.feature) | Nested resources assembled across three joined tables, `!inner` filtering that narrows the *parent*, and the difference between an empty embedded list and a missing one. |
+| [`authorization.feature`](src/test/resources/features/authorization.feature) | Reads are open, writes need a role. **401** when there is no token, **403** when the token is valid and the role simply is not permitted — a client that retries on one and re-authenticates on the other behaves differently for each. Also expiry, a signature signed with the wrong key, and an attempt to escalate by asking for a role in a header. |
 | [`contract.feature`](src/test/resources/features/contract.feature) | The mock and the real service answering the same consumer. |
 
 Those error codes are real. They come from Postgres rejecting the write, which is the entire
@@ -106,9 +107,31 @@ claimed: the seeded catalogue is present and every row is well formed.
 
 ---
 
+## Authorisation is in the schema, so it can be asserted on
+
+PostgREST does not decide authorisation itself. A token names a Postgres role, PostgREST switches
+the session to it, and the `GRANT`s in `init.sql` decide the rest — so `authorization.feature` is
+testing the permission model over HTTP, which is the only place a caller can observe it.
+
+Anonymous callers may read. Every write carries a `catalog_writer` token, minted in
+[`JwtTokens`](src/test/java/dev/diegonava/karate/JwtTokens.java) — thirty lines of HMAC rather
+than a dependency whose only job here would be producing four short strings.
+
+**The interesting role is `catalog_reader`.** A suite that only tests "anonymous cannot write"
+leaves the far more common production bug untouched: a valid, authenticated token whose role was
+granted more than anyone intended, which looks exactly like a working request until someone audits
+the `GRANT`s.
+
+Adding the writer token to thirty-nine write scenarios was mechanical, and mechanical changes are
+exactly the ones that pass without doing anything. Removing it from a single create scenario
+produced `401` where `201` was expected — which is the only reason the other thirty-eight are
+known to matter rather than merely to be present.
+
+---
+
 ## Proving the negative tests can fail
 
-Seventeen scenarios assert that the API *rejects* something. All of them are green, and a green
+Twenty-five scenarios assert that the API *rejects* something. All of them are green, and a green
 tick says nothing about whether the assertion held or simply never ran.
 
 So CI runs the whole suite a second time against
@@ -203,9 +226,6 @@ a container on. Testcontainers documents the singleton pattern for exactly this 
 - **Performance as a *number*.** The Gatling profile above is a regression signal, not a capacity
   figure, and CI runs it only on demand. A load profile in the per-push build turns every commit
   into a timing measurement of whichever runner GitHub handed out.
-- **Authentication.** PostgREST supports JWT roles; this suite runs everything as one anonymous
-  role. Adding auth would test PostgREST's implementation rather than this suite's ability to
-  handle it.
 - **Automated bumping of the two container images.** The Postgres and PostgREST tags are Java
   string constants, which Dependabot's docker updater cannot read — it parses Dockerfiles and
   compose files, and this repository has neither. Those two pins are bumped by hand.
