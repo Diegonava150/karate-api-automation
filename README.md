@@ -5,6 +5,10 @@
 [![Karate](https://img.shields.io/badge/Karate-2.1.2-2EAD33?logoColor=white)](pom.xml)
 [![Testcontainers](https://img.shields.io/badge/Testcontainers-Postgres%20%2B%20PostgREST-2496ED?logo=docker&logoColor=white)](src/test/java/dev/diegonava/karate/ApiUnderTest.java)
 
+**📊 [Live Karate report](https://diegonava150.github.io/karate-api-automation/)** — published from
+every push to `main`, pass or fail. A report you only get when everything was green is a report you
+never need.
+
 API suite in **Karate 2 · Java 21**, running against an API it starts itself.
 
 ```bash
@@ -197,8 +201,6 @@ a container on. Testcontainers documents the singleton pattern for exactly this 
 - **Authentication.** PostgREST supports JWT roles; this suite runs everything as one anonymous
   role. Adding auth would test PostgREST's implementation rather than this suite's ability to
   handle it.
-- **A published report.** The Karate HTML report is uploaded as a CI artifact but not published
-  to Pages. That is a deliberate first-push boundary, not an oversight.
 - **Automated bumping of the two container images.** The Postgres and PostgREST tags are Java
   string constants, which Dependabot's docker updater cannot read — it parses Dockerfiles and
   compose files, and this repository has neither. Those two pins are bumped by hand.

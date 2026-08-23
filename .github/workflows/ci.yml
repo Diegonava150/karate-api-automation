@@ -9,6 +9,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -252,6 +255,69 @@ jobs:
           path: target/gatling
           retention-days: 14
           if-no-files-found: warn
+
+  # The Karate report, published. The three sibling repositories all have a live report and this
+  # one had only a CI artifact, which is a link nobody outside the Actions tab can follow.
+  #
+  # Main pushes only: publishing from every branch would overwrite the report with whatever that
+  # branch happened to do. And gated on the suite passing is deliberately NOT the rule — a failing
+  # run is precisely when the report is worth reading, so this needs `always()` and checks the
+  # artifact exists rather than that the tests were green.
+  #
+  # No history to carry forward, unlike the Allure-based siblings: Karate's report is per-run by
+  # design and has no trend of its own. Nothing to restore, and nothing to lose to cache eviction.
+  publish-report:
+    name: Publish report to Pages
+    needs: [test]
+    if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Download the report from the test job
+        uses: actions/download-artifact@v8
+        with:
+          name: karate-report
+          path: karate-report
+        continue-on-error: true
+
+      # Karate already writes its own index.html - a redirect to karate-summary.html - so there
+      # is nothing to synthesise here. The first version of this step copied the summary over
+      # index.html, which would have replaced Karate's redirect with a duplicate of the page it
+      # points at. Harmless by luck rather than by design, and wrong the moment the report gains
+      # a real landing page.
+      #
+      # Asserting both files exist is the useful thing: an empty or partial artifact is exactly
+      # what would otherwise be published as a working report.
+      - name: Stop if there is nothing to publish
+        id: check
+        run: |
+          if [ -f karate-report/index.html ] && [ -f karate-report/karate-summary.html ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Report looks complete."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No usable Karate report in this run - nothing to publish."
+            ls -la karate-report 2>/dev/null || true
+          fi
+
+      - uses: actions/configure-pages@v6
+        if: steps.check.outputs.found == 'true'
+
+      - uses: actions/upload-pages-artifact@v5
+        if: steps.check.outputs.found == 'true'
+        with:
+          path: karate-report
+
+      - name: Deploy to Pages
+        id: deploy
+        if: steps.check.outputs.found == 'true'
+        uses: actions/deploy-pages@v5
 
   secrets-scan:
     name: Secret scan (gitleaks)
