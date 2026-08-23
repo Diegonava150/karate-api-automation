@@ -53,16 +53,29 @@ public final class ApiUnderTest {
     /** A private network so PostgREST can reach Postgres by alias rather than by mapped port. */
     private static final Network NETWORK = Network.newNetwork();
 
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>(DockerImageName.parse(POSTGRES_IMAGE))
-                    .withDatabaseName(DB_NAME)
-                    .withUsername(DB_USER)
-                    .withPassword(DB_PASSWORD)
-                    .withNetwork(NETWORK)
-                    .withNetworkAliases("db")
-                    .withCopyFileToContainer(
-                            MountableFile.forClasspathResource(schemaResource()),
-                            "/docker-entrypoint-initdb.d/init.sql");
+    private static final PostgreSQLContainer<?> POSTGRES = postgres();
+
+    private static PostgreSQLContainer<?> postgres() {
+        PostgreSQLContainer<?> container = new PostgreSQLContainer<>(DockerImageName.parse(POSTGRES_IMAGE))
+                .withDatabaseName(DB_NAME)
+                .withUsername(DB_USER)
+                .withPassword(DB_PASSWORD)
+                .withNetwork(NETWORK)
+                .withNetworkAliases("db")
+                .withCopyFileToContainer(
+                        MountableFile.forClasspathResource(schemaResource()),
+                        "/docker-entrypoint-initdb.d/01-schema.sql");
+
+        // Postgres runs everything in that directory in alphabetical order, which is what lets a
+        // data-only file be layered on the real schema instead of forking a third copy of it.
+        // Used by the performance suite, where eleven rows would make every plan meaningless.
+        extraDataResource()
+                .ifPresent(resource -> container.withCopyFileToContainer(
+                        MountableFile.forClasspathResource(resource),
+                        "/docker-entrypoint-initdb.d/02-data.sql"));
+
+        return container;
+    }
 
     private static final GenericContainer<?> POSTGREST =
             new GenericContainer<>(DockerImageName.parse(POSTGREST_IMAGE))
@@ -78,6 +91,15 @@ public final class ApiUnderTest {
                     // permissions bug rather than a missing configuration value. PostgREST
                     // refuses secrets shorter than 32 characters outright.
                     .withEnv("PGRST_JWT_SECRET", JwtTokens.SECRET)
+                    // Lets a caller ask for the query plan instead of the rows, via
+                    // `Accept: application/vnd.pgrst.plan`. That is how the performance suite
+                    // asserts on index usage without timing anything, which is the only kind of
+                    // performance assertion a shared CI runner cannot make flaky.
+                    //
+                    // On in this container because it is a fixture that lives for one test run.
+                    // It exposes the shape of the schema to anyone who can reach the API, so it
+                    // would not be on in production.
+                    .withEnv("PGRST_DB_PLAN_ENABLED", "true")
                     // Without this PostgREST caches the schema at boot and never notices the
                     // tables, answering 404 for every endpoint that plainly exists.
                     .withEnv("PGRST_DB_CONFIG", "false")
@@ -99,6 +121,17 @@ public final class ApiUnderTest {
      */
     private static String schemaResource() {
         return System.getProperty("api.schema", "db/init.sql");
+    }
+
+    /**
+     * An optional second SQL file, applied after the schema.
+     *
+     * <p>Absent for every functional run. The performance suite sets it to {@code db/volume.sql},
+     * which adds ten thousand books and fifty thousand reviews — the point at which a query plan
+     * starts describing a database someone might actually operate.
+     */
+    private static java.util.Optional<String> extraDataResource() {
+        return java.util.Optional.ofNullable(System.getProperty("api.extraData"));
     }
 
     /** Base URI of the running API. Starts the stack on first call. */

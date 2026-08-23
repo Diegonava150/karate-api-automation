@@ -220,6 +220,47 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # Performance assertions that are safe to gate on, which means no wall-clock thresholds.
+  #
+  # Two techniques, both immune to whichever runner GitHub hands out. Query plans contain no
+  # timing at all — "this lookup uses an index" is the same answer on every machine. And ratios
+  # are measured within a single run, so the machine's speed divides out and what is left is the
+  # shape of the curve, which is a property of the code.
+  #
+  # Runs on every push precisely because it is deterministic. The Gatling load profile is manual
+  # for the opposite reason: it reports numbers, and numbers move with the hardware.
+  query-plans:
+    name: Query plans and scaling
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      # api.extraData layers ten thousand books and fifty thousand reviews on the ordinary
+      # schema. Without it every plan assertion asserts the opposite of the truth: Postgres
+      # declines to use an index on a four-row table, correctly, so the small seed makes a
+      # sequential scan the right answer and the assertion a lie.
+      - name: Run against a database with volume in it
+        run: |
+          ./mvnw -B clean test             -Dtest=PerformanceTest             -Dapi.extraData=db/volume.sql             -DfailIfNoSpecifiedTests=false
+
+      - name: Upload the performance report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: performance-report
+          path: target/karate-reports
+          retention-days: 14
+          if-no-files-found: ignore
+
   # On demand only. A load profile in the per-push build turns every commit into a timing
   # measurement of whichever runner GitHub handed out, and a number that moves for that reason
   # teaches everyone to ignore it.

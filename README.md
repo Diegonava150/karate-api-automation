@@ -166,6 +166,57 @@ whole suite says nothing about the one assertion it was aimed at.
 
 ---
 
+## Performance, without a clock
+
+Most load testing in CI is theatre. A threshold like `p95 < 200ms` on a shared runner is either
+loose enough never to fire or tight enough to fire at random — the sibling mobile repository
+measured **26 to 43 minutes for identical code**, and a "30% faster" claim had to be withdrawn from
+it because the runner was noisier than the effect.
+
+So the gate contains only assertions that mean the same thing on every machine.
+
+**Query plans, which contain no timing at all.** PostgREST will return the plan instead of the
+rows for `Accept: application/vnd.pgrst.plan`, so
+[`query-plans.feature`](src/test/resources/performance/query-plans.feature) asserts on how the
+database *reaches* the data. "This lookup uses an index" is a stable answer; "this lookup took
+40ms" is a fact about a laptop.
+
+**Ratios measured inside one run.** Both samples happen on the same machine seconds apart, so its
+speed divides out and what is left is the shape of the curve —
+[`scaling.feature`](src/test/resources/performance/scaling.feature) requires ten times the rows to
+cost less than eight times the time. That is what catches an N+1 or a missing join index, and it
+needs no absolute number to do it.
+
+**Zero failed requests under concurrency**, the one absolute assertion that is safe. Connection
+pool exhaustion, deadlocks and 5xx under contention all land there, and none of them appears in a
+single-user run.
+
+### The fixture this rests on, and the mistake it prevents
+
+The ordinary seed is eleven rows, which is the right size for asserting behaviour and the wrong
+size for asserting cost. [`volume.sql`](src/test/resources/db/volume.sql) layers ten thousand books
+and fifty thousand reviews on the same schema, and the performance suite refuses to run without it.
+
+That refusal is there because the small fixture already produced one wrong conclusion. The plan for
+the three-level embed showed `Seq Scan` at a cost of 48858 and looked exactly like a missing index.
+Adding indexes dropped it to 7.53 — and so did dropping those indexes again while keeping the
+`ANALYZE`. The whole difference was stale statistics, and a plan assertion written against that
+fixture would have pinned the wrong conclusion in place.
+
+### It found a real defect on the day it was written
+
+Postgres indexes a `PRIMARY KEY` and a `UNIQUE` constraint automatically. It does **not** index the
+referencing side of a `FOREIGN KEY` — which is the side every child lookup filters on.
+
+At fifty thousand reviews, `/reviews?bookId=eq.500` was a sequential scan costing **993** to return
+five rows. With `reviews_book_idx` it is a bitmap scan costing **22.67**. The same query against the
+eleven-row seed showed nothing wrong whatsoever.
+
+Verified in both directions: removing the two indexes fails three plan scenarios, each naming the
+scan it found.
+
+---
+
 ## Load, from the same feature files
 
 ```bash
@@ -223,9 +274,9 @@ a container on. Testcontainers documents the singleton pattern for exactly this 
 
 ## Deliberately not covered
 
-- **Performance as a *number*.** The Gatling profile above is a regression signal, not a capacity
-  figure, and CI runs it only on demand. A load profile in the per-push build turns every commit
-  into a timing measurement of whichever runner GitHub handed out.
+- **Performance as a *number*.** Latency and throughput are reported by the Gatling profile and
+  gated by nothing. They are facts about the runner, and the two things that are facts about the
+  code — query plans and scaling ratios — are gated instead.
 - **Automated bumping of the two container images.** The Postgres and PostgREST tags are Java
   string constants, which Dependabot's docker updater cannot read — it parses Dockerfiles and
   compose files, and this repository has neither. Those two pins are bumped by hand.
