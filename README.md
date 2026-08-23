@@ -184,8 +184,16 @@ database *reaches* the data. "This lookup uses an index" is a stable answer; "th
 **Ratios measured inside one run.** Both samples happen on the same machine seconds apart, so its
 speed divides out and what is left is the shape of the curve —
 [`scaling.feature`](src/test/resources/performance/scaling.feature) requires ten times the rows to
-cost less than eight times the time. That is what catches an N+1 or a missing join index, and it
+cost less than twenty times the time. That is what catches an N+1 or a missing join index, and it
 needs no absolute number to do it.
+
+The bound is twenty rather than the eight it started at, and the correction is the interesting
+part. **Linear scaling is a ratio of ten** — a bound of eight asserts the endpoint is strictly
+*sub*-linear, which no correct system owes anyone. It passed locally only because a 5 ms fixed
+cost dominated a 4 ms query. The first CI run measured 5 against that budget on a perfectly
+healthy system, and a faster runner would have failed the build for scaling correctly. Twenty
+sits above linear and far below what the failures actually look like: an N+1 turns ten times the
+rows into fifty or a hundred times the time, not eleven.
 
 **Zero failed requests under concurrency**, the one absolute assertion that is safe. Connection
 pool exhaustion, deadlocks and 5xx under contention all land there, and none of them appears in a
