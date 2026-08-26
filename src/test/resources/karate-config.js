@@ -9,15 +9,13 @@
  * property; this reads it back.
  */
 function fn() {
-  var env = karate.env || 'container';
-
   var baseUrl = karate.properties['api.baseUrl'];
   if (!baseUrl) {
     // Failing loudly here beats a suite full of connection errors to `nullundefined`, which
     // is what an unset base URL actually looks like from inside a scenario.
     throw new Error(
-      'api.baseUrl was not set. Run the suite through KarateSuiteTest (or ContractTest), ' +
-        'which starts the containers and passes the resolved address in.'
+      'api.baseUrl was not set. Run the suite through KarateSuiteTest or PerformanceTest, ' +
+        'which start the containers and pass the resolved address in.'
     );
   }
 
@@ -27,7 +25,6 @@ function fn() {
   var mockUrl = karate.properties['mock.baseUrl'] || null;
 
   var config = {
-    env: env,
     baseUrl: baseUrl,
     mockUrl: mockUrl,
 
