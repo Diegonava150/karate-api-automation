@@ -59,6 +59,7 @@ public class CatalogLoadSimulation extends Simulation {
      * numbers would drift upward for a reason that has nothing to do with the code.
      */
     private final ScenarioBuilder readCatalog = scenario("catalog reads")
+            .exec(karateFeature("classpath:features/authors.feature", "@perf"))
             .exec(karateFeature("classpath:features/books.feature", "@perf"))
             .exec(karateFeature("classpath:features/embedding.feature", "@perf"))
             .exec(karateFeature("classpath:features/reviews.feature", "@perf"));

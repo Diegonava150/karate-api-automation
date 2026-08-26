@@ -149,12 +149,4 @@ public final class ApiUnderTest {
     private static String url() {
         return "http://%s:%d".formatted(POSTGREST.getHost(), POSTGREST.getMappedPort(POSTGREST_PORT));
     }
-
-    public static String postgresImage() {
-        return POSTGRES_IMAGE;
-    }
-
-    public static String postgrestImage() {
-        return POSTGREST_IMAGE;
-    }
 }
