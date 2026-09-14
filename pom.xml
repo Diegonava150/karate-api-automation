@@ -29,7 +29,7 @@
     <slf4j.version>2.0.18</slf4j.version>
     <logback.version>1.6.3</logback.version>
     <surefire.version>3.5.6</surefire.version>
-    <gatling.plugin.version>4.21.10</gatling.plugin.version>
+    <gatling.plugin.version>4.21.12</gatling.plugin.version>
 
     <!-- Threads for the Karate parallel runner. Overridable = ./mvnw test -Dkarate.threads=1 -->
     <karate.threads>4</karate.threads>
